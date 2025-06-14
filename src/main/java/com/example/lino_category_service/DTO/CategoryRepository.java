@@ -1,6 +1,9 @@
+package com.example.lino_category_service.DTO;
+
+import com.example.lino_category_service.entity.Category;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface CategoryRepository extends JpaRepository<Category, long> {
+public interface CategoryRepository extends JpaRepository<Category, Long> {
 }
