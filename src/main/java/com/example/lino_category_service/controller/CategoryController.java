@@ -1,5 +1,6 @@
 package com.example.lino_category_service.controller;
-import com.example.lino_category_service.DTO.CategoryRepository;
+import com.example.lino_category_service.DTO.ApiResponse;
+import com.example.lino_category_service.repository.CategoryRepository;
 import com.example.lino_category_service.entity.Category;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -16,77 +17,114 @@ public class CategoryController {
     private CategoryRepository categoryRepository;
 
     @GetMapping
-    public List<Category> getAllCategories() {
-        return categoryRepository.findAll();
+    public ResponseEntity<?> getAllCategories() {
+        try {
+            List<Category> categories = categoryRepository.findAll();
+            return ResponseEntity.ok(ApiResponse.success(categories));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(500, "INTERNAL_SERVER_ERROR", "Failed to retrieve categories"));
+        }
     }
 
     @GetMapping("/{id}")
-    public Object getCategoryById(@PathVariable Integer id) {
+    public ResponseEntity<?> getCategoryById(@PathVariable Long id) {
         try {
-            Optional<Category> existsCategory = categoryRepository.findById(Long.valueOf(id));
-            if (existsCategory.isPresent()) {
-                return existsCategory;
+            Optional<Category> category = categoryRepository.findById(id);
+            if (category.isPresent()) {
+                return ResponseEntity.ok(ApiResponse.success(category.get()));
             } else {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.not_found("Category with ID " + id + " not found"));
             }
         } catch (Exception e) {
-            return ResponseEntity.internalServerError();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(500, "INTERNAL_SERVER_ERROR", "Failed to retrieve category"));
         }
     }
 
     @PostMapping()
     public ResponseEntity<?> createCategory(@RequestBody Category category) {
         try {
-            Optional<Category> existsCategory = categoryRepository.findById(Long.valueOf(category.getId()));
-            if (existsCategory.isPresent()) {
-                return ResponseEntity
-                        .status(HttpStatus.CONFLICT)
-                        .body("Category with ID " + category.getId() + " already exists.");
+            // Validate required fields
+            if (category.getName() == null || category.getName().trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.badRequest("Category name is required"));
+            }
+            
+            if (category.getType() != 0 && category.getType() != 1) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.badRequest("Category type must be 0 (course) or 1 (quiz)"));
+            }
+
+            // Check if category with same name already exists
+            List<Category> existingCategories = categoryRepository.findAll();
+            boolean nameExists = existingCategories.stream()
+                    .anyMatch(existing -> existing.getName().equalsIgnoreCase(category.getName()));
+            
+            if (nameExists) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ApiResponse.error(409, "CONFLICT", "Category with name '" + category.getName() + "' already exists"));
             }
 
             Category savedCategory = categoryRepository.save(category);
-            return ResponseEntity.ok(savedCategory);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.created(savedCategory));
 
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(500, "INTERNAL_SERVER_ERROR", "Failed to create category"));
         }
     }
 
-
-
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateCategory(@PathVariable Integer id, @RequestBody Category updatedCategory) {
+    public ResponseEntity<?> updateCategory(@PathVariable Long id, @RequestBody Category updatedCategory) {
         try {
-            Optional<Category> existsCategory = categoryRepository.findById(Long.valueOf(id));
-            if (existsCategory.isPresent()) {
-                Category category = existsCategory.get();
+            // Validate required fields
+            if (updatedCategory.getName() == null || updatedCategory.getName().trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.badRequest("Category name is required"));
+            }
+            
+            if (updatedCategory.getType() != 0 && updatedCategory.getType() != 1) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.badRequest("Category type must be 0 (course) or 1 (quiz)"));
+            }
+
+            Optional<Category> existingCategory = categoryRepository.findById(id);
+            if (existingCategory.isPresent()) {
+                Category category = existingCategory.get();
                 category.setName(updatedCategory.getName());
                 category.setDescription(updatedCategory.getDescription());
                 category.setType(updatedCategory.getType());
 
                 Category savedCategory = categoryRepository.save(category);
-                return ResponseEntity.ok(savedCategory);
+                return ResponseEntity.ok(ApiResponse.success(savedCategory));
             } else {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.not_found("Category with ID " + id + " not found"));
             }
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(500, "INTERNAL_SERVER_ERROR", "Failed to update category"));
         }
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Optional<Category>> deleteCategory(@PathVariable Integer id) {
+    public ResponseEntity<?> deleteCategory(@PathVariable Long id) {
         try {
-            Optional<Category> existsCategory = categoryRepository.findById(Long.valueOf(id));
-            if (existsCategory.isPresent()) {
-                categoryRepository.deleteById(Long.valueOf(id));
-                return ResponseEntity.ok(existsCategory);
+            Optional<Category> existingCategory = categoryRepository.findById(id);
+            if (existingCategory.isPresent()) {
+                Category categoryToDelete = existingCategory.get();
+                categoryRepository.deleteById(id);
+                return ResponseEntity.ok(ApiResponse.success(categoryToDelete));
             } else {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.not_found("Category with ID " + id + " not found"));
             }
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(500, "INTERNAL_SERVER_ERROR", "Failed to delete category"));
         }
     }
-
 }
